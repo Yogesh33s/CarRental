@@ -1,4 +1,3 @@
-
 import os
 import re
 import uuid
@@ -25,12 +24,9 @@ cars = db["cars"]
 customers = db["customers"]
 rentals = db["rentals"]
 
-CATEGORIES = [
-    "Sedan", "SUV", "Hatchback", "Convertible", "Truck", "Minivan"
-]
+CATEGORIES = ["Sedan", "SUV", "Hatchback", "Convertible", "Truck", "Minivan"]
 CONDITIONS = ["Good", "Scratched", "Damaged"]
 DAILY_LATE_FEE = 500.0
-
 
 # -------------------- DATABASE INDEXES --------------------
 
@@ -43,7 +39,6 @@ rentals.create_index("booking_code", unique=True)
 rentals.create_index([("car_id", ASCENDING), ("status", ASCENDING)])
 rentals.create_index([("customer_id", ASCENDING), ("status", ASCENDING)])
 
-
 # -------------------- HELPERS --------------------
 
 def json_doc(doc):
@@ -52,7 +47,6 @@ def json_doc(doc):
         return None
 
     result = {}
-
     for key, value in doc.items():
         if key == "_id" or isinstance(value, ObjectId):
             result[key] = str(value)
@@ -60,7 +54,6 @@ def json_doc(doc):
             result[key] = value.isoformat()
         else:
             result[key] = value
-
     return result
 
 
@@ -74,7 +67,7 @@ def body():
 
 
 def valid_object_id(value):
-    return ObjectId.is_valid(value)
+    return isinstance(value, str) and ObjectId.is_valid(value)
 
 
 def parse_date(value):
@@ -93,12 +86,24 @@ def get_positive_amount(value, field_name, allow_zero=True):
     return round(amount, 2)
 
 
+def parse_booking_datetime(value, field_name):
+    """Parse a stored ISO datetime string or datetime object."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            raise ValueError(f"{field_name} is invalid.")
+    raise ValueError(f"{field_name} is missing.")
+
+
 @app.errorhandler(DuplicateKeyError)
-def duplicate_key(_):
+def duplicate_key(_exc):
     return error(
         "A unique value already exists. Check the VIN, license plate, "
         "customer email, driver license, or booking code.",
-        409
+        409,
     )
 
 
@@ -108,6 +113,8 @@ def database_error(exc):
     return error("A database operation failed. Please try again.", 500)
 
 
+# -------------------- MAIN / HEALTH --------------------
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -116,10 +123,7 @@ def home():
 @app.route("/api/health")
 def health():
     client.admin.command("ping")
-    return jsonify({
-        "status": "connected",
-        "database": db.name
-    })
+    return jsonify({"status": "connected", "database": db.name})
 
 
 # -------------------- CAR MANAGEMENT --------------------
@@ -127,7 +131,13 @@ def health():
 @app.route("/api/cars", methods=["GET"])
 def get_cars():
     documents = cars.find().sort("make", ASCENDING)
-    return jsonify([json_doc(car) for car in documents])
+    result = []
+    for car in documents:
+        item = json_doc(car)
+        # Legacy records are returned as-is; do not silently treat a daily
+        # rate as an hourly rate.
+        result.append(item)
+    return jsonify(result)
 
 
 @app.route("/api/cars", methods=["POST"])
@@ -135,8 +145,8 @@ def add_car():
     data = body()
 
     required = [
-        "make", "model", "year", "category", "daily_rate",
-        "license_plate", "vin", "fuel_type", "transmission"
+        "make", "model", "year", "category", "hourly_rate",
+        "license_plate", "vin", "fuel_type", "transmission",
     ]
 
     if any(
@@ -150,17 +160,17 @@ def add_car():
 
     try:
         year = int(data["year"])
-        daily_rate = get_positive_amount(
-            data["daily_rate"], "Daily rate", allow_zero=False
+        hourly_rate = get_positive_amount(
+            data["hourly_rate"], "Hourly rate", allow_zero=False
         )
     except (ValueError, TypeError) as exc:
-        return error(str(exc) or "Enter a valid year and daily rate.")
+        return error(str(exc) or "Enter a valid year and hourly rate.")
 
     if year < 2015 or year > date.today().year + 1:
         return error("Vehicle year must be 2015 or later.")
 
-    if daily_rate < 15:
-        return error("Daily rate must be at least ₹15.")
+    if hourly_rate < 15:
+        return error("Hourly rate must be at least ₹15.")
 
     plate = str(data["license_plate"]).strip().upper()
     vin = str(data["vin"]).strip().upper()
@@ -176,20 +186,19 @@ def add_car():
         "model": str(data["model"]).strip(),
         "year": year,
         "category": data["category"],
-        "daily_rate": daily_rate,
+        "hourly_rate": hourly_rate,
         "license_plate": plate,
         "vin": vin,
         "fuel_type": str(data["fuel_type"]).strip(),
         "transmission": str(data["transmission"]).strip(),
         "status": "Available",
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
     }
 
     result = cars.insert_one(document)
-
     return jsonify({
         "message": "Car added successfully.",
-        "id": str(result.inserted_id)
+        "id": str(result.inserted_id),
     }), 201
 
 
@@ -199,7 +208,6 @@ def delete_car(car_id):
         return error("Invalid car ID.")
 
     car = cars.find_one({"_id": ObjectId(car_id)})
-
     if not car:
         return error("Car not found.", 404)
 
@@ -209,11 +217,10 @@ def delete_car(car_id):
     if rentals.count_documents({"car_id": car_id}) > 0:
         return error(
             "This car has rental history. Keep it to preserve records.",
-            409
+            409,
         )
 
     cars.delete_one({"_id": ObjectId(car_id)})
-
     return jsonify({"message": "Car deleted successfully."})
 
 
@@ -228,14 +235,12 @@ def get_customers():
 @app.route("/api/customers", methods=["POST"])
 def add_customer():
     data = body()
-
     required = ["name", "email", "phone", "license_number", "city"]
 
     if any(not str(data.get(key, "")).strip() for key in required):
         return error("Please complete every customer field.")
 
     email = str(data["email"]).strip().lower()
-
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         return error("Enter a valid email address.")
 
@@ -246,14 +251,13 @@ def add_customer():
         "license_number": str(data["license_number"]).strip().upper(),
         "city": str(data["city"]).strip(),
         "total_spending": 0.0,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow(),
     }
 
     result = customers.insert_one(document)
-
     return jsonify({
         "message": "Customer registered successfully.",
-        "id": str(result.inserted_id)
+        "id": str(result.inserted_id),
     }), 201
 
 
@@ -263,24 +267,22 @@ def delete_customer(customer_id):
         return error("Invalid customer ID.")
 
     customer = customers.find_one({"_id": ObjectId(customer_id)})
-
     if not customer:
         return error("Customer not found.", 404)
 
     if rentals.count_documents({
         "customer_id": customer_id,
-        "status": "Rented"
+        "status": "Rented",
     }):
         return error("Customer has an active rental.", 409)
 
     if rentals.count_documents({"customer_id": customer_id}):
         return error(
             "This customer has rental history. Keep the record.",
-            409
+            409,
         )
 
     customers.delete_one({"_id": ObjectId(customer_id)})
-
     return jsonify({"message": "Customer deleted successfully."})
 
 
@@ -292,7 +294,7 @@ def get_rentals():
     return jsonify([json_doc(rental) for rental in documents])
 
 
-# -------------------- CREATE RENTAL --------------------
+# -------------------- CREATE HOURLY RENTAL --------------------
 
 @app.route("/api/rentals", methods=["POST"])
 def create_rental():
@@ -301,61 +303,110 @@ def create_rental():
     email = str(data.get("customer_email", "")).strip().lower()
     plate = str(data.get("license_plate", "")).strip().upper()
 
-    try:
-        start = parse_date(data.get("start_date", ""))
-        end = parse_date(data.get("end_date", ""))
-    except (ValueError, TypeError):
-        return error("Select valid rental start and end dates.")
+    required = [
+        "customer_email", "license_plate",
+        "start_date", "start_time", "end_date", "end_time",
+    ]
+    if any(not str(data.get(field, "")).strip() for field in required):
+        return error("Please complete all rental fields.")
 
-    if start < date.today():
+    try:
+        start_date = parse_date(data["start_date"])
+        end_date = parse_date(data["end_date"])
+        start_time = datetime.strptime(data["start_time"], "%H:%M").time()
+        end_time = datetime.strptime(data["end_time"], "%H:%M").time()
+    except (ValueError, TypeError):
+        return error("Select valid rental dates and times.")
+
+    start_at = datetime.combine(start_date, start_time)
+    end_at = datetime.combine(end_date, end_time)
+
+    if start_date < date.today():
         return error("Rental start date cannot be in the past.")
 
-    if end < start:
-        return error("End date must be on or after the start date.")
+    if end_at <= start_at:
+        return error("Rental end date and time must be after the start.")
+
+    # Charge every started hour as one billable hour.
+    duration_seconds = (end_at - start_at).total_seconds()
+    duration_hours = int((duration_seconds + 3599) // 3600)
+    if duration_hours < 1:
+        return error("Rental duration must be at least one hour.")
 
     customer = customers.find_one({"email": email})
-
     if not customer:
-        return error("Customer not found. Register the customer first.", 404)
+        return error(
+            "Customer not found. Register the customer first.",
+            404,
+        )
 
     car = cars.find_one({"license_plate": plate})
-
     if not car:
         return error("Car not found.", 404)
 
     if car.get("status") != "Available":
         return error("Car is not available.", 409)
 
-    start_text = start.isoformat()
-    end_text = end.isoformat()
-    car_id = str(car["_id"])
-    customer_id = str(customer["_id"])
+    if car.get("hourly_rate") is None:
+        return error(
+            "This vehicle has no hourly rate. Update its rate first.",
+            409,
+        )
 
-    # Reject overlapping active rentals.
-    overlap = rentals.find_one({
+    try:
+        hourly_rate = get_positive_amount(
+            car["hourly_rate"], "Hourly rate", allow_zero=False
+        )
+    except (ValueError, TypeError) as exc:
+        return error(str(exc))
+
+    car_id = str(car["_id"])
+
+    # Check time overlap against active rentals. Older date-only bookings
+    # conservatively block the entire date range they cover.
+    active_rentals = rentals.find({
         "car_id": car_id,
         "status": "Rented",
-        "start_date": {"$lte": end_text},
-        "end_date": {"$gte": start_text}
     })
 
-    if overlap:
-        return error("This car has an overlapping active booking.", 409)
+    for existing in active_rentals:
+        try:
+            if existing.get("start_at") and existing.get("end_at"):
+                existing_start = parse_booking_datetime(
+                    existing["start_at"], "Existing booking start"
+                )
+                existing_end = parse_booking_datetime(
+                    existing["end_at"], "Existing booking end"
+                )
+            else:
+                old_start = parse_date(existing["start_date"])
+                old_end = parse_date(existing["end_date"])
+                existing_start = datetime.combine(old_start, time.min)
+                existing_end = datetime.combine(old_end, time.max)
+        except (ValueError, TypeError, KeyError):
+            return error(
+                "An existing booking has invalid date/time data.",
+                409,
+            )
 
-    days = (end - start).days + 1
-    rental_amount = round(days * float(car["daily_rate"]), 2)
+        if start_at < existing_end and end_at > existing_start:
+            return error(
+                "This car has an overlapping active booking.",
+                409,
+            )
+
+    rental_amount = round(duration_hours * hourly_rate, 2)
     booking_code = "BK-" + uuid.uuid4().hex[:8].upper()
 
-    # Claim the car before inserting the rental.
+    # Claim the car before saving, preventing simultaneous bookings.
     claimed = cars.update_one(
         {"_id": car["_id"], "status": "Available"},
-        {"$set": {"status": "Rented"}}
+        {"$set": {"status": "Rented"}},
     )
-
     if claimed.modified_count != 1:
         return error(
             "The car was just booked. Refresh and select another vehicle.",
-            409
+            409,
         )
 
     rental = {
@@ -363,13 +414,17 @@ def create_rental():
         "car_id": car_id,
         "car_name": f'{car["make"]} {car["model"]}',
         "license_plate": plate,
-        "customer_id": customer_id,
+        "customer_id": str(customer["_id"]),
         "customer_name": customer["name"],
         "customer_email": email,
-        "start_date": start_text,
-        "end_date": end_text,
-        "duration_days": days,
-        "daily_rate": float(car["daily_rate"]),
+        "start_date": start_date.isoformat(),
+        "start_time": start_time.strftime("%H:%M"),
+        "end_date": end_date.isoformat(),
+        "end_time": end_time.strftime("%H:%M"),
+        "start_at": start_at.isoformat(),
+        "end_at": end_at.isoformat(),
+        "duration_hours": duration_hours,
+        "hourly_rate": hourly_rate,
         "total_amount": rental_amount,
         "late_fee": 0.0,
         "damage_charge": 0.0,
@@ -381,25 +436,26 @@ def create_rental():
         "vehicle_condition": None,
         "return_notes": "",
         "overdue_days": 0,
-        "maintenance_required": False
+        "maintenance_required": False,
     }
 
     try:
         result = rentals.insert_one(rental)
         rental["_id"] = result.inserted_id
     except Exception:
-        # Compensating update if booking insertion fails.
         cars.update_one(
             {"_id": car["_id"], "status": "Rented"},
-            {"$set": {"status": "Available"}}
+            {"$set": {"status": "Available"}},
         )
         raise
 
     return jsonify({
         "message": "Booking created successfully.",
         "booking_code": booking_code,
+        "duration_hours": duration_hours,
+        "hourly_rate": hourly_rate,
         "total_amount": rental_amount,
-        "rental": json_doc(rental)
+        "rental": json_doc(rental),
     }), 201
 
 
@@ -411,10 +467,9 @@ def return_car(rental_id):
         return error("Invalid rental ID.")
 
     data = body()
-
     rental = rentals.find_one({
         "_id": ObjectId(rental_id),
-        "status": "Rented"
+        "status": "Rented",
     })
 
     if not rental:
@@ -424,9 +479,7 @@ def return_car(rental_id):
         returned_date = parse_date(
             data.get("returned_date", date.today().isoformat())
         )
-        late_fee = get_positive_amount(
-            data.get("late_fee", 0), "Late fee"
-        )
+        late_fee = get_positive_amount(data.get("late_fee", 0), "Late fee")
         damage_charge = get_positive_amount(
             data.get("damage_charge", 0), "Damage charge"
         )
@@ -434,9 +487,10 @@ def return_car(rental_id):
         return error(str(exc) or "Enter a valid return date and fees.")
 
     condition = data.get("condition", "Good")
-
     if condition not in CONDITIONS:
-        return error("Choose Good, Scratched, or Damaged for vehicle condition.")
+        return error(
+            "Choose Good, Scratched, or Damaged for vehicle condition."
+        )
 
     if returned_date < parse_date(rental["start_date"]):
         return error("Return date cannot be before the rental start date.")
@@ -454,11 +508,9 @@ def return_car(rental_id):
     overdue_days = max(0, (returned_date - planned_end).days)
     suggested_late_fee = round(overdue_days * DAILY_LATE_FEE, 2)
 
-    # The final amount includes rental cost and return charges.
     base_amount = float(rental.get("total_amount", 0))
     final_amount = round(base_amount + late_fee + damage_charge, 2)
 
-    # Mark the rental complete only if it is still active.
     completed = rentals.update_one(
         {"_id": rental["_id"], "status": "Rented"},
         {"$set": {
@@ -472,25 +524,22 @@ def return_car(rental_id):
             "damage_charge": damage_charge,
             "return_notes": notes,
             "maintenance_required": maintenance,
-            "final_amount": final_amount
-        }}
+            "final_amount": final_amount,
+        }},
     )
 
     if completed.modified_count != 1:
         return error("Rental has already been returned.", 409)
 
-    # Return to the available fleet unless maintenance is required.
     new_status = "Maintenance" if maintenance else "Available"
-
     cars.update_one(
         {"_id": ObjectId(rental["car_id"])},
-        {"$set": {"status": new_status}}
+        {"$set": {"status": new_status}},
     )
 
-    # Update cumulative customer spending.
     customers.update_one(
         {"_id": ObjectId(rental["customer_id"])},
-        {"$inc": {"total_spending": final_amount}}
+        {"$inc": {"total_spending": final_amount}},
     )
 
     return jsonify({
@@ -499,7 +548,7 @@ def return_car(rental_id):
         "vehicle_status": new_status,
         "overdue_days": overdue_days,
         "suggested_late_fee": suggested_late_fee,
-        "final_amount": final_amount
+        "final_amount": final_amount,
     })
 
 
@@ -512,10 +561,9 @@ def dashboard():
     rented_cars = cars.count_documents({"status": "Rented"})
     customer_count = customers.count_documents({})
 
-    # Include completed rentals only in recognized revenue.
     completed_rentals = list(rentals.find(
         {"status": "Completed"},
-        {"total_amount": 1, "final_amount": 1}
+        {"total_amount": 1, "final_amount": 1},
     ))
 
     revenue = round(sum(
@@ -527,7 +575,7 @@ def dashboard():
         {
             "$match": {
                 "status": "Completed",
-                "returned_at": {"$type": "date"}
+                "returned_at": {"$type": "date"},
             }
         },
         {
@@ -535,17 +583,17 @@ def dashboard():
                 "_id": {
                     "$dateToString": {
                         "format": "%Y-%m",
-                        "date": "$returned_at"
+                        "date": "$returned_at",
                     }
                 },
                 "total": {
                     "$sum": {
                         "$ifNull": ["$final_amount", "$total_amount"]
                     }
-                }
+                },
             }
         },
-        {"$sort": {"_id": 1}}
+        {"$sort": {"_id": 1}},
     ]
 
     monthly = list(rentals.aggregate(monthly_pipeline))
@@ -554,10 +602,10 @@ def dashboard():
         {
             "$group": {
                 "_id": "$category",
-                "count": {"$sum": 1}
+                "count": {"$sum": 1},
             }
         },
-        {"$sort": {"_id": 1}}
+        {"$sort": {"_id": 1}},
     ]))
 
     return jsonify({
@@ -568,7 +616,7 @@ def dashboard():
         "total_revenue": revenue,
         "months": [item["_id"] for item in monthly],
         "monthly_revenue": [item["total"] for item in monthly],
-        "categories": categories
+        "categories": categories,
     })
 
 

@@ -6,12 +6,13 @@ let allCustomers = [];
 let allRentals = [];
 let revenueChart = null;
 let categoryChart = null;
+let modalType = "";
 
 const pageInfo = {
   dashboard: ["Dashboard", "Overview of your rental operations and earnings"],
-  cars: ["Cars", "Manage your fleet, availability and rental rates"],
+  cars: ["Cars", "Manage your fleet, availability and hourly rates"],
   customers: ["Customers", "Registered customers and driver license information"],
-  rent: ["Rent a Car", "Enter customer details and process a new rental"],
+  rent: ["Rent a Car", "Book a vehicle by the hour"],
   history: ["Rental History", "Active and completed rental bookings"]
 };
 
@@ -22,10 +23,14 @@ function money(value) {
   });
 }
 
-function toast(message, error = false) {
+function hourlyRate(car) {
+  return Number(car?.hourly_rate ?? car?.daily_rate ?? 0);
+}
+
+function toast(message, isError = false) {
   const el = $("toast");
   el.textContent = message;
-  el.style.background = error ? "#b42332" : "#17233b";
+  el.style.background = isError ? "#b42332" : "#17233b";
   el.classList.add("show");
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => el.classList.remove("show"), 3500);
@@ -68,6 +73,13 @@ function badge(status) {
   return span;
 }
 
+function todayISO(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function showPage(name) {
   if (!pageInfo[name]) return;
 
@@ -93,7 +105,8 @@ document.querySelectorAll("[data-go]").forEach(button => {
   button.addEventListener("click", () => showPage(button.dataset.go));
 });
 
-// ---------- DASHBOARD ----------
+
+// ---------------- DASHBOARD ----------------
 
 async function loadDashboard() {
   const data = await api("/api/dashboard");
@@ -121,7 +134,7 @@ async function loadDashboard() {
         borderColor: "#2864ed",
         backgroundColor: "rgba(40,100,237,.12)",
         pointRadius: 4,
-        tension: .3,
+        tension: 0.3,
         fill: true
       }]
     },
@@ -157,7 +170,8 @@ async function loadDashboard() {
   });
 }
 
-// ---------- CARS ----------
+
+// ---------------- CARS ----------------
 
 async function loadCars() {
   allCars = await api("/api/cars");
@@ -167,7 +181,9 @@ async function loadCars() {
   const status = $("carStatusFilter").value;
 
   const filtered = allCars.filter(car => {
-    const text = `${car.make} ${car.model} ${car.license_plate} ${car.vin}`.toLowerCase();
+    const text =
+      `${car.make} ${car.model} ${car.license_plate} ${car.vin}`.toLowerCase();
+
     return text.includes(search)
       && (!category || car.category === category)
       && (!status || car.status === status);
@@ -187,7 +203,6 @@ async function loadCars() {
 
   filtered.forEach(car => {
     const row = document.createElement("tr");
-
     const details = document.createElement("td");
     const name = document.createElement("div");
     name.className = "primary-text";
@@ -196,12 +211,12 @@ async function loadCars() {
     const specs = document.createElement("div");
     specs.className = "secondary-text";
     specs.textContent = `${car.fuel_type || ""} • ${car.transmission || ""}`;
-    details.append(name, specs);
 
+    details.append(name, specs);
     row.appendChild(details);
     row.appendChild(makeCell(car._id));
     row.appendChild(makeCell(car.category));
-    row.appendChild(makeCell(money(car.daily_rate) + "/day"));
+    row.appendChild(makeCell(`${money(hourlyRate(car))}/hr`));
     row.appendChild(makeCell(car.license_plate));
 
     const statusCell = document.createElement("td");
@@ -213,6 +228,7 @@ async function loadCars() {
     if (car.status !== "Rented") {
       actions.appendChild(makeButton("🗑 Remove", "btn-light", async () => {
         if (!confirm("Remove this vehicle?")) return;
+
         try {
           await api(`/api/cars/${car._id}`, { method: "DELETE" });
           toast("Vehicle removed.");
@@ -248,7 +264,7 @@ function populateAvailableCars() {
     const option = document.createElement("option");
     option.value = car.license_plate;
     option.textContent =
-      `${car.make} ${car.model} • ${car.license_plate} • ${money(car.daily_rate)}/day`;
+      `${car.make} ${car.model} • ${car.license_plate} • ${money(hourlyRate(car))}/hr`;
     select.appendChild(option);
   });
 
@@ -259,7 +275,8 @@ function populateAvailableCars() {
   updateRentalPreview();
 }
 
-// ---------- CUSTOMERS ----------
+
+// ---------------- CUSTOMERS ----------------
 
 async function loadCustomers() {
   allCustomers = await api("/api/customers");
@@ -294,6 +311,7 @@ async function loadCustomers() {
     const action = document.createElement("td");
     action.appendChild(makeButton("🗑 Remove", "btn-light", async () => {
       if (!confirm("Remove this customer?")) return;
+
       try {
         await api(`/api/customers/${customer._id}`, { method: "DELETE" });
         toast("Customer removed.");
@@ -308,7 +326,8 @@ async function loadCustomers() {
   });
 }
 
-// ---------- RENTAL HISTORY ----------
+
+// ---------------- RENTAL HISTORY ----------------
 
 async function loadRentals() {
   allRentals = await api("/api/rentals");
@@ -319,7 +338,7 @@ async function loadRentals() {
   const filtered = allRentals.filter(rental =>
     `${rental.booking_code} ${rental.customer_name} ${rental.car_name}`
       .toLowerCase().includes(search)
-      && (!status || rental.status === status)
+    && (!status || rental.status === status)
   );
 
   const body = $("rentalsBody");
@@ -342,22 +361,25 @@ async function loadRentals() {
     const customerName = document.createElement("div");
     customerName.className = "primary-text";
     customerName.textContent = rental.customer_name || "—";
+
     const customerEmail = document.createElement("div");
     customerEmail.className = "secondary-text";
     customerEmail.textContent = rental.customer_email || "";
+
     customerCell.append(customerName, customerEmail);
     row.appendChild(customerCell);
 
     row.appendChild(makeCell(
       `${rental.car_name || ""} (${rental.license_plate || ""})`
     ));
-    row.appendChild(makeCell(`${rental.start_date} → ${rental.end_date}`));
 
-    const days = Math.max(1,
-      Math.round((new Date(rental.end_date) - new Date(rental.start_date)) / 86400000) + 1
-    );
-    row.appendChild(makeCell(`${days} day${days === 1 ? "" : "s"}`));
-    row.appendChild(makeCell(money(rental.total_amount)));
+    const startDisplay = `${rental.start_date || ""} ${rental.start_time || ""}`.trim();
+    const endDisplay = `${rental.end_date || ""} ${rental.end_time || ""}`.trim();
+    row.appendChild(makeCell(`${startDisplay} → ${endDisplay}`));
+
+    const duration = Number(rental.duration_hours || 0);
+    row.appendChild(makeCell(`${duration} hour${duration === 1 ? "" : "s"}`));
+    row.appendChild(makeCell(money(rental.final_amount ?? rental.total_amount)));
 
     const statusCell = document.createElement("td");
     statusCell.appendChild(badge(rental.status));
@@ -378,7 +400,8 @@ async function loadRentals() {
   });
 }
 
-// ---------- RENTAL FORM & PRICE PREVIEW ----------
+
+// ---------------- HOURLY RENTAL PREVIEW ----------------
 
 function updateRentalPreview() {
   const name = $("rentName").value.trim();
@@ -387,33 +410,59 @@ function updateRentalPreview() {
   const car = allCars.find(c => c.license_plate === plate);
 
   $("rentPlate").value = plate || "";
-  $("dailyRate").value = car ? money(car.daily_rate) : "Select a car first";
+  $("dailyRate").value = car
+    ? `${money(hourlyRate(car))}/hr`
+    : "Select a car first";
 
   const start = $("startDate").value;
+  const startTime = $("startTime").value;
   const end = $("endDate").value;
+  const endTime = $("endTime").value;
 
-  let days = 1;
-  if (start && end) {
-    const difference = Math.round(
-      (new Date(end + "T00:00:00") - new Date(start + "T00:00:00")) / 86400000
-    );
-    days = difference >= 0 ? difference + 1 : 0;
+  let hours = 0;
+  let total = 0;
+  let validPeriod = false;
+
+  if (start && startTime && end && endTime) {
+    const startDateTime = new Date(`${start}T${startTime}`);
+    const endDateTime = new Date(`${end}T${endTime}`);
+    const difference = endDateTime - startDateTime;
+
+    if (Number.isFinite(difference) && difference > 0) {
+      hours = Math.ceil(difference / 3600000);
+      total = car ? hours * hourlyRate(car) : 0;
+      validPeriod = true;
+    }
   }
 
-  const total = car && days > 0 ? days * Number(car.daily_rate) : 0;
+  $("duration").value = validPeriod
+    ? `${hours} hour${hours === 1 ? "" : "s"}`
+    : "Choose valid dates and times";
 
-  $("duration").value = `${days} day${days === 1 ? "" : "s"}`;
   $("summaryCustomer").textContent = name || "No Customer Entered";
   $("summaryEmail").textContent = email || "Customer email will appear here";
-  $("summaryCar").textContent = car ? `${car.make} ${car.model}` : "No Car Selected";
-  $("summaryRate").textContent = `Rate: ${money(car?.daily_rate || 0)} / day`;
-  $("summaryDates").textContent = start && end ? `${start} → ${end}` : "Choose rental dates";
-  $("summaryDuration").textContent = `Duration: ${days} day${days === 1 ? "" : "s"}`;
+  $("summaryCar").textContent = car
+    ? `${car.make} ${car.model}`
+    : "No Car Selected";
+
+  $("summaryRate").textContent =
+    `Rate: ${money(car ? hourlyRate(car) : 0)} / hr`;
+
+  $("summaryDates").textContent = validPeriod
+    ? `${start} ${startTime} → ${end} ${endTime}`
+    : "Choose rental dates and times";
+
+  $("summaryDuration").textContent = `Duration: ${
+    validPeriod ? `${hours} hour${hours === 1 ? "" : "s"}` : "—"
+  }`;
+
   $("summaryBase").textContent = money(total);
   $("summaryTotal").textContent = money(total);
 }
 
-["rentName", "startDate", "endDate", "rentCarSelect"].forEach(id => {
+[
+  "rentName", "startDate", "startTime", "endDate", "endTime", "rentCarSelect"
+].forEach(id => {
   $(id).addEventListener("input", updateRentalPreview);
   $(id).addEventListener("change", updateRentalPreview);
 });
@@ -422,8 +471,10 @@ $("rentalForm").elements.email.addEventListener("input", updateRentalPreview);
 
 $("rentalForm").addEventListener("reset", () => {
   setTimeout(() => {
-    $("startDate").value = new Date().toLocaleDateString("en-CA");
-    $("endDate").value = new Date(Date.now() + 86400000).toLocaleDateString("en-CA");
+    $("startDate").value = todayISO();
+    $("startTime").value = "09:00";
+    $("endDate").value = todayISO();
+    $("endTime").value = "10:00";
     updateRentalPreview();
   }, 0);
 });
@@ -433,22 +484,34 @@ $("rentalForm").addEventListener("submit", async event => {
 
   const form = event.currentTarget;
   const data = Object.fromEntries(new FormData(form));
+
   data.license_plate = $("rentCarSelect").value;
   data.start_date = $("startDate").value;
+  data.start_time = $("startTime").value;
   data.end_date = $("endDate").value;
+  data.end_time = $("endTime").value;
 
   if (!data.license_plate) {
     toast("Please select an available car.", true);
     return;
   }
 
-  if (!data.start_date || !data.end_date || data.end_date < data.start_date) {
-    toast("Please select valid rental dates.", true);
+  if (!data.start_date || !data.start_time ||
+      !data.end_date || !data.end_time) {
+    toast("Please select both dates and times.", true);
+    return;
+  }
+
+  const start = new Date(`${data.start_date}T${data.start_time}`);
+  const end = new Date(`${data.end_date}T${data.end_time}`);
+
+  if (!Number.isFinite(start.getTime()) ||
+      !Number.isFinite(end.getTime()) || end <= start) {
+    toast("End date and time must be after the start.", true);
     return;
   }
 
   try {
-    // Register the customer first. Reuse existing customer records by email.
     const existing = allCustomers.find(c =>
       c.email.toLowerCase() === data.email.toLowerCase()
     );
@@ -472,7 +535,9 @@ $("rentalForm").addEventListener("submit", async event => {
         customer_email: data.email,
         license_plate: data.license_plate,
         start_date: data.start_date,
-        end_date: data.end_date
+        start_time: data.start_time,
+        end_date: data.end_date,
+        end_time: data.end_time
       })
     });
 
@@ -485,10 +550,10 @@ $("rentalForm").addEventListener("submit", async event => {
   }
 });
 
-// ---------- ADD CAR / CUSTOMER MODALS ----------
+
+// ---------------- ADD CAR / CUSTOMER MODALS ----------------
 
 const backdrop = $("modalBackdrop");
-let modalType = "";
 
 function closeModal() {
   backdrop.classList.remove("open");
@@ -496,6 +561,7 @@ function closeModal() {
 
 $("closeModal").addEventListener("click", closeModal);
 $("cancelModal").addEventListener("click", closeModal);
+
 backdrop.addEventListener("click", event => {
   if (event.target === backdrop) closeModal();
 });
@@ -508,13 +574,23 @@ function addField(container, label, name, placeholder, type = "text", required =
   title.textContent = label;
 
   let input;
-  if (type === "select-category" || type === "select-fuel" || type === "select-transmission") {
+
+  if (type.startsWith("select-")) {
     input = document.createElement("select");
-    const options = type === "select-category"
-      ? ["Sedan", "SUV", "Hatchback", "Convertible", "Truck", "Minivan"]
-      : type === "select-fuel"
-        ? ["Petrol", "Diesel", "Electric", "Hybrid"]
-        : ["Manual", "Automatic"];
+
+    let options = [];
+
+    if (type === "select-category") {
+      options = ["Sedan", "SUV", "Hatchback", "Convertible", "Truck", "Minivan"];
+    } else if (type === "select-fuel") {
+      options = ["Petrol", "Diesel", "Electric", "Hybrid"];
+    } else if (type === "select-transmission") {
+      options = ["Manual", "Automatic"];
+    } else if (type === "select-condition") {
+      options = ["Good", "Scratched", "Damaged"];
+    } else if (type === "select-maintenance") {
+      options = ["No", "Yes"];
+    }
 
     input.add(new Option("Choose " + label.toLowerCase(), ""));
     options.forEach(option => input.add(new Option(option, option)));
@@ -532,7 +608,9 @@ function addField(container, label, name, placeholder, type = "text", required =
 
 function openRecordModal(type) {
   modalType = type;
-  $("modalTitle").textContent = type === "car" ? "🚗 Add New Car" : "👥 Add New Customer";
+  $("modalTitle").textContent =
+    type === "car" ? "🚗 Add New Car" : "👥 Add New Customer";
+
   const fields = $("modalFields");
   fields.replaceChildren();
 
@@ -541,7 +619,7 @@ function openRecordModal(type) {
     addField(fields, "Model *", "model", "e.g. Creta");
     addField(fields, "Year *", "year", "Enter model year", "number");
     addField(fields, "Category *", "category", "", "select-category");
-    addField(fields, "Daily Rate *", "daily_rate", "Enter daily rental rate", "number");
+    addField(fields, "Hourly Rate (₹) *", "hourly_rate", "Enter hourly rate", "number");
     addField(fields, "License Plate *", "license_plate", "Enter license plate");
     addField(fields, "VIN *", "vin", "Enter vehicle VIN");
     addField(fields, "Fuel Type *", "fuel_type", "", "select-fuel");
@@ -554,6 +632,7 @@ function openRecordModal(type) {
     addField(fields, "City *", "city", "Enter city");
   }
 
+  $("modalForm").onsubmit = null;
   backdrop.classList.add("open");
 }
 
@@ -562,11 +641,15 @@ $("addCustomerBtn").addEventListener("click", () => openRecordModal("customer"))
 
 $("modalForm").addEventListener("submit", async event => {
   event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.currentTarget));
+
+  const form = event.currentTarget;
+  const data = Object.fromEntries(new FormData(form));
+
+  if (modalType === "return") return;
 
   if (modalType === "car") {
     data.year = Number(data.year);
-    data.daily_rate = Number(data.daily_rate);
+    data.hourly_rate = Number(data.hourly_rate);
   }
 
   try {
@@ -576,7 +659,7 @@ $("modalForm").addEventListener("submit", async event => {
     });
 
     closeModal();
-    event.currentTarget.reset();
+    form.reset();
     toast(modalType === "car" ? "Car added successfully!" : "Customer registered!");
     await refresh();
   } catch (e) {
@@ -584,11 +667,13 @@ $("modalForm").addEventListener("submit", async event => {
   }
 });
 
-// ---------- RETURN WORKFLOW ----------
-// The return endpoint will be extended next to persist these details.
+
+// ---------------- RETURN VEHICLE ----------------
 
 function openReturnForm(rental) {
+  modalType = "return";
   $("modalTitle").textContent = "✓ Return Vehicle";
+
   const fields = $("modalFields");
   fields.replaceChildren();
 
@@ -599,49 +684,47 @@ function openReturnForm(rental) {
 
   addField(fields, "Actual Return Date *", "returned_date", "", "date");
   addField(fields, "Vehicle Condition *", "condition", "", "select-condition");
-
-  const condition = fields.querySelector('[name="condition"]');
-  condition.replaceChildren(
-    new Option("Choose condition", ""),
-    new Option("Good", "Good"),
-    new Option("Scratched", "Scratched"),
-    new Option("Damaged", "Damaged")
-  );
-
   addField(fields, "Late Fee (₹)", "late_fee", "Enter late fee", "number");
   addField(fields, "Damage Charge (₹)", "damage_charge", "Enter damage charge", "number");
   addField(fields, "Maintenance Required?", "maintenance", "", "select-maintenance");
-
-  const maintenance = fields.querySelector('[name="maintenance"]');
-  maintenance.replaceChildren(
-    new Option("No", "false"),
-    new Option("Yes", "true")
-  );
-
   addField(fields, "Return Notes", "return_notes", "Describe scratches or damage", "text", false);
 
-  const dateInput = fields.querySelector('[name="returned_date"]');
-  dateInput.value = new Date().toLocaleDateString("en-CA");
+  const returnedDate = fields.querySelector('[name="returned_date"]');
+  returnedDate.value = todayISO();
+
+  const condition = fields.querySelector('[name="condition"]');
+  condition.value = "Good";
+
+  const maintenance = fields.querySelector('[name="maintenance"]');
+  maintenance.value = "No";
+
+  const lateFee = fields.querySelector('[name="late_fee"]');
+  const damageCharge = fields.querySelector('[name="damage_charge"]');
+  lateFee.value = "0";
+  damageCharge.value = "0";
 
   $("modalForm").onsubmit = async event => {
     event.preventDefault();
+
     const formData = Object.fromEntries(new FormData(event.currentTarget));
 
     for (const key of ["late_fee", "damage_charge"]) {
       formData[key] = Number(formData[key] || 0);
-      if (formData[key] < 0) {
-        toast("Fees cannot be negative.", true);
+
+      if (!Number.isFinite(formData[key]) || formData[key] < 0) {
+        toast("Fees must be valid non-negative amounts.", true);
         return;
       }
     }
 
-    formData.maintenance = formData.maintenance === "true";
+    formData.maintenance = formData.maintenance === "Yes";
 
     try {
       await api(`/api/rentals/${rental._id}/return`, {
         method: "POST",
         body: JSON.stringify(formData)
       });
+
       closeModal();
       toast("Return recorded.");
       await refresh();
@@ -653,7 +736,8 @@ function openReturnForm(rental) {
   backdrop.classList.add("open");
 }
 
-// ---------- FILTERS & REFRESH ----------
+
+// ---------------- FILTERS & REFRESH ----------------
 
 $("carSearch").addEventListener("input", loadCars);
 $("carCategoryFilter").addEventListener("change", loadCars);
@@ -676,10 +760,13 @@ async function refresh() {
   }
 }
 
-const today = new Date();
-const tomorrow = new Date(Date.now() + 86400000);
-$("startDate").value = today.toLocaleDateString("en-CA");
-$("endDate").value = tomorrow.toLocaleDateString("en-CA");
+
+// ---------------- INITIALIZE ----------------
+
+$("startDate").value = todayISO();
+$("startTime").value = "09:00";
+$("endDate").value = todayISO();
+$("endTime").value = "10:00";
 
 refresh();
 updateRentalPreview();

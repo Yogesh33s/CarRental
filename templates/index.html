@@ -265,10 +265,32 @@ tbody tr:hover { background:#fafcff; }
         <div class="form-section">
           <h3>3. RENTAL DATES & DURATION</h3>
           <div class="form-grid">
-            <div class="field"><label>Rental Start Date *</label><input type="date" id="startDate" name="start_date" required></div>
-            <div class="field"><label>Rental End Date *</label><input type="date" id="endDate" name="end_date" required></div>
-            <div class="field"><label>Duration (Days)</label><input id="duration" value="1 day" readonly></div>
-            <div class="field"><label>Daily Rate</label><input id="dailyRate" value="Select a car first" readonly></div>
+            
+<div class="field">
+    <label>Rental Start Date *</label>
+    <input type="date" id="startDate" name="start_date" required>
+</div>
+<div class="field">
+    <label>Rental Start Time *</label>
+    <input type="time" id="startTime" name="start_time" required>
+</div>
+<div class="field">
+    <label>Rental End Date *</label>
+    <input type="date" id="endDate" name="end_date" required>
+</div>
+<div class="field">
+    <label>Rental End Time *</label>
+    <input type="time" id="endTime" name="end_time" required>
+</div>
+<div class="field">
+    <label>Duration (Hours)</label>
+    <input id="duration" value="Select dates and times" readonly>
+</div>
+<div class="field">
+    <label>Hourly Rate</label>
+    <input id="dailyRate" value="Select a car first" readonly>
+</div>
+
           </div>
         </div>
         <div class="form-actions"><button type="reset" class="btn btn-light">Clear Form</button><button class="btn btn-primary" type="submit">🔑 Confirm & Rent Car</button></div>
