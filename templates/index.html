@@ -1,334 +1,659 @@
 
+
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>RentWheels | Vehicle Rental System</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
 <style>
+
 :root {
+
   --blue:#2864ed; --blue-light:#edf4ff; --bg:#f6f8fc;
+
   --text:#17233b; --muted:#71809a; --border:#e0e7f2;
+
   --green:#059669; --red:#e5484d; --card:#fff;
+
 }
-* { box-sizing:border-box; }
+
+\ { box-sizing*:border-box; }
+
 body {
+
   margin:0; font-family:Inter,"Segoe UI",Arial,sans-serif;
+
   background:var(--bg); color:var(--text);
+
 }
+
 button,input,select,textarea { font:inherit; }
+
 button { cursor:pointer; }
+
 .app { display:flex; min-height:100vh; }
+
 .sidebar {
+
   width:240px; flex-shrink:0; background:white;
+
   border-right:1px solid var(--border); padding:22px 12px;
+
   display:flex; flex-direction:column;
+
 }
+
 .brand { padding:0 12px 25px; border-bottom:1px solid var(--border); }
+
 .brand-name { font-size:20px; font-weight:800; letter-spacing:-.6px; }
+
 .brand-sub { font-size:11px; color:var(--muted); margin-top:3px; }
+
 .nav { display:grid; gap:7px; margin-top:24px; }
+
 .nav button {
+
   background:transparent; color:#596983; border:0; text-align:left;
+
   padding:13px 14px; border-radius:10px; font-size:14px;
+
 }
+
 .nav button:hover,.nav button.active { background:var(--blue-light); color:var(--blue); }
+
 .sidebar-foot {
+
   margin-top:auto; border:1px solid #b9f1d2; background:#f0fdf6;
+
   color:var(--green); border-radius:11px; padding:13px; font-size:12px;
+
 }
+
 .main { flex:1; min-width:0; }
+
 .topbar {
+
   min-height:74px; background:white; border-bottom:1px solid var(--border);
+
   padding:16px 30px; display:flex; align-items:center;
+
   justify-content:space-between; gap:12px;
+
 }
+
 .topbar h1 { font-size:21px; margin:0 0 4px; }
+
 .subtitle { color:var(--muted); font-size:12px; }
+
 .admin { border-radius:22px; background:#f0f3f9; padding:9px 14px; font-size:12px; }
+
 .content { padding:24px 30px; max-width:1700px; margin:auto; }
+
 .page { display:none; }
+
 .page.active { display:block; }
+
 .metrics {
+
   display:grid; grid-template-columns:repeat(5,minmax(0,1fr));
+
   gap:15px; margin-bottom:24px;
+
 }
+
 .metric,.panel {
+
   background:white; border:1px solid var(--border); border-radius:15px;
+
   box-shadow:0 2px 5px #162b4d05;
+
 }
+
 .metric { padding:18px; display:flex; align-items:center; gap:13px; }
+
 .metric-icon {
+
   width:44px; height:44px; border-radius:12px; display:grid;
+
   place-items:center; font-size:21px; flex-shrink:0;
+
 }
+
 .metric-label { font-size:12px; color:var(--muted); }
+
 .metric-value { font-size:25px; font-weight:800; margin-top:7px; }
+
 .blue { background:#edf4ff; } .green { background:#e9fbf2; }
+
 .pink { background:#fff0f0; } .purple { background:#f4eaff; }
+
 .yellow { background:#fff5d6; }
+
 .panel { padding:20px; margin-bottom:20px; min-width:0; }
+
 .panel-title { margin:0 0 5px; font-size:16px; }
+
 .panel-sub { font-size:12px; color:var(--muted); margin-bottom:18px; }
+
 .charts { display:grid; grid-template-columns:1.5fr 1fr; gap:20px; }
+
 .chart-box { height:260px; position:relative; }
+
 .welcome {
+
   display:flex; align-items:center; justify-content:space-between;
+
   gap:20px; background:#f0fdf6; border:1px solid #a7f3c8;
+
   border-radius:14px; padding:19px 22px; color:#087443; margin-top:24px;
+
 }
+
 .welcome p { margin:5px 0 0; font-size:12px; }
+
 .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:18px; }
+
 .toolbar .spacer { flex:1; }
+
 input,select,textarea {
+
   background:white; border:1px solid #dce4f0; border-radius:9px;
+
   padding:11px 12px; color:var(--text); outline:none; min-width:0;
+
 }
+
 input:focus,select:focus,textarea:focus { border-color:#82a8ff; box-shadow:0 0 0 3px #2864ed12; }
+
 input::placeholder,textarea::placeholder { color:#8491a6; }
+
 .search { width:250px; }
+
 .btn {
+
   border:0; border-radius:9px; padding:11px 15px;
+
   font-size:12px; font-weight:700; display:inline-flex;
+
   align-items:center; justify-content:center; gap:6px;
+
 }
+
 .btn-primary { background:var(--blue); color:white; }
+
 .btn-primary:hover { background:#174ed0; }
+
 .btn-light { background:#edf2fa; color:#34445e; }
+
 .btn-danger { background:#fff0f0; color:#c92c35; }
+
 .btn-success { background:#e9fbf2; color:#047857; }
+
 .table-wrap { overflow-x:auto; }
+
 table { width:100%; border-collapse:collapse; white-space:nowrap; font-size:12px; }
+
 th { text-align:left; color:#61718b; background:#f8fafd; font-weight:700; }
+
 th,td { padding:14px 12px; border-bottom:1px solid #e9eef5; }
+
 tbody tr:hover { background:#fafcff; }
+
 .primary-text { font-weight:700; }
+
 .secondary-text { color:var(--muted); font-size:11px; margin-top:4px; }
+
 .badge { padding:5px 10px; border-radius:20px; font-size:10px; font-weight:700; display:inline-block; }
+
 .badge-available,.badge-completed { background:#e8faf0; color:#078353; }
+
 .badge-rented { background:#edf4ff; color:#2864ed; }
+
 .badge-maintenance,.badge-damaged { background:#fff0f0; color:#d03939; }
+
 .badge-scratched { background:#fff5d6; color:#976400; }
+
 .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+
 .field { display:flex; flex-direction:column; gap:7px; }
+
 .field label { color:#53647e; font-size:12px; font-weight:600; }
+
 .field input,.field select,.field textarea { width:100%; }
+
 .form-section { padding:18px 0; border-bottom:1px solid var(--border); }
+
 .form-section:first-child { padding-top:0; }
+
 .form-section h3 { font-size:13px; color:var(--blue); margin:0 0 16px; }
+
 .form-actions { margin-top:20px; display:flex; gap:10px; justify-content:flex-end; }
+
 .rental-layout { display:grid; grid-template-columns:1.6fr 1fr; gap:20px; align-items:start; }
+
 .summary-item { padding:15px; background:#f8fafd; border:1px solid var(--border); border-radius:10px; margin-bottom:12px; }
+
 .summary-label { font-size:10px; color:var(--muted); text-transform:uppercase; }
+
 .summary-value { font-size:14px; font-weight:700; margin-top:5px; }
+
 .total-box { padding:18px; border:1px solid #bad2ff; background:#eff5ff; border-radius:11px; }
+
 .total-row { display:flex; justify-content:space-between; gap:12px; margin:8px 0; font-size:13px; }
+
 .total-final { font-size:23px; color:var(--blue); font-weight:800; }
+
 .notice { font-size:12px; color:var(--muted); margin-top:12px; }
+
 .empty { text-align:center; color:var(--muted); padding:30px; }
+
 .modal-backdrop {
+
   position:fixed; inset:0; background:#17233b80; display:none;
+
   align-items:center; justify-content:center; padding:18px; z-index:10;
+
 }
+
 .modal-backdrop.open { display:flex; }
+
 .modal { background:white; width:min(620px,100%); max-height:90vh; overflow:auto; border-radius:16px; padding:24px; }
+
 .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+
 .modal-head h2 { margin:0; font-size:19px; }
-#toast {
+
+\#toast {
+
   position:fixed; right:24px; bottom:24px; padding:14px 18px;
+
   background:#17233b; color:white; border-radius:10px; display:none; z-index:20;
+
   max-width:calc(100vw - 40px); font-size:13px;
+
 }
-#toast.show { display:block; }
+
+\#toast.show { display:block; }
+
 .mobile-menu { display:none; }
+
 @media(max-width:1200px) {
+
   .metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+
   .charts { grid-template-columns:1fr; }
+
 }
+
 @media(max-width:850px) {
+
   .sidebar { width:190px; }
+
   .content { padding:18px; }
+
   .topbar { padding:16px 20px; }
+
   .rental-layout { grid-template-columns:1fr; }
+
 }
+
 @media(max-width:620px) {
+
   .sidebar { width:100%; padding:12px; border-right:0; border-bottom:1px solid var(--border); }
+
   .app { display:block; }
+
   .brand { padding-bottom:12px; }
+
   .nav { display:flex; overflow-x:auto; margin-top:12px; }
+
   .nav button { white-space:nowrap; }
+
   .sidebar-foot { display:none; }
+
   .topbar { padding:14px 16px; }
+
   .topbar h1 { font-size:18px; }
+
   .admin { display:none; }
+
   .content { padding:14px; }
+
   .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+
   .metric { padding:12px; gap:9px; }
+
   .metric-icon { width:34px; height:34px; font-size:17px; }
+
   .metric-value { font-size:21px; }
+
   .metric-label { font-size:10px; }
+
   .form-grid { grid-template-columns:1fr; }
+
   .search { width:100%; }
+
   .toolbar { align-items:stretch; }
+
   .toolbar .spacer { display:none; }
+
   .welcome { align-items:flex-start; flex-direction:column; }
+
 }
+
 </style>
+
 </head>
+
 <body>
+
 <div class="app">
+
 <aside class="sidebar">
+
   <div class="brand">
+
     <div class="brand-name">🚘 RentWheels</div>
+
     <div class="brand-sub">Vehicle Rental System</div>
+
   </div>
+
   <nav class="nav">
+
     <button class="active" data-page="dashboard">📊 &nbsp; Dashboard</button>
+
     <button data-page="cars">🚗 &nbsp; Cars</button>
+
     <button data-page="customers">👥 &nbsp; Customers</button>
+
     <button data-page="rent">🔑 &nbsp; Rent a Car <span>NEW</span></button>
+
     <button data-page="history">📝 &nbsp; Rental History</button>
+
   </nav>
+
   <div class="sidebar-foot">🟢 <strong>MongoDB Atlas</strong><br><span class="secondary-text">Vehicle rental database</span></div>
+
 </aside>
 
+
+
 <div class="main">
+
 <header class="topbar">
+
   <div><h1 id="pageTitle">Dashboard</h1><div class="subtitle" id="pageSubtitle">Overview of your rental operations and earnings</div></div>
+
   <div class="admin">👤 Admin Portal</div>
+
 </header>
 
+
+
 <main class="content">
+
 <section class="page active" id="page-dashboard">
+
   <div class="metrics">
+
     <div class="metric"><div class="metric-icon blue">🚘</div><div><div class="metric-label">Total Cars</div><div class="metric-value" id="totalCars">—</div></div></div>
+
     <div class="metric"><div class="metric-icon green">✓</div><div><div class="metric-label">Available Cars</div><div class="metric-value" id="availableCars">—</div></div></div>
+
     <div class="metric"><div class="metric-icon pink">🔑</div><div><div class="metric-label">Rented Cars</div><div class="metric-value" id="rentedCars">—</div></div></div>
+
     <div class="metric"><div class="metric-icon purple">👥</div><div><div class="metric-label">Total Customers</div><div class="metric-value" id="customerCount">—</div></div></div>
+
     <div class="metric"><div class="metric-icon yellow">💰</div><div><div class="metric-label">Total Revenue</div><div class="metric-value" id="revenue">—</div></div></div>
+
   </div>
+
   <div class="charts">
+
     <div class="panel"><h2 class="panel-title">Monthly Revenue Trend</h2><div class="panel-sub">Revenue recorded from completed rentals</div><div class="chart-box"><canvas id="revenueChart"></canvas></div></div>
+
     <div class="panel"><h2 class="panel-title">Cars by Category</h2><div class="panel-sub">Current fleet distribution</div><div class="chart-box"><canvas id="categoryChart"></canvas></div></div>
+
   </div>
+
   <div class="welcome"><div><strong>Ready to rent a car to a customer?</strong><p>Choose a vehicle, calculate the rental fee and create a booking.</p></div><button class="btn btn-primary" data-go="rent">🔑 Go to Rent Page →</button></div>
+
 </section>
+
+
 
 <section class="page" id="page-cars">
+
   <div class="panel">
+
     <div class="toolbar">
+
       <input id="carSearch" class="search" placeholder="Search make, model, plate...">
+
       <select id="carCategoryFilter"><option value="">All Categories</option><option>Sedan</option><option>SUV</option><option>Hatchback</option><option>Convertible</option><option>Truck</option><option>Minivan</option></select>
+
       <select id="carStatusFilter"><option value="">All Statuses</option><option>Available</option><option>Rented</option><option>Maintenance</option></select>
+
       <div class="spacer"></div>
+
       <button class="btn btn-primary" id="addCarBtn">＋ Add New Car</button>
+
     </div>
+
     <div class="table-wrap"><table><thead><tr><th>Car Details</th><th>Car ID / VIN</th><th>Category</th><th>Daily Rate</th><th>License Plate</th><th>Status</th><th>Action</th></tr></thead><tbody id="carsBody"><tr><td colspan="7" class="empty">Loading cars...</td></tr></tbody></table></div>
+
   </div>
+
 </section>
+
+
 
 <section class="page" id="page-customers">
+
   <div class="panel">
+
     <div class="toolbar">
+
       <input id="customerSearch" class="search" placeholder="Search customer name or email...">
+
       <div class="spacer"></div>
+
       <button class="btn btn-primary" id="addCustomerBtn">＋ Add New Customer</button>
+
     </div>
+
     <div class="table-wrap"><table><thead><tr><th>Customer Name</th><th>Email</th><th>Phone</th><th>Driver License</th><th>City</th><th>Total Spent</th><th>Action</th></tr></thead><tbody id="customersBody"><tr><td colspan="7" class="empty">Loading customers...</td></tr></tbody></table></div>
+
   </div>
+
 </section>
+
+
 
 <section class="page" id="page-rent">
+
   <div class="rental-layout">
+
     <div class="panel">
+
       <h2 class="panel-title">🔑 Rent a Car Form</h2>
+
       <div class="panel-sub">Enter customer details and choose a vehicle to create a rental.</div>
+
       <form id="rentalForm">
+
         <div class="form-section">
+
           <h3>1. CUSTOMER DETAILS</h3>
           <div class="form-grid">
-            <div class="field"><label>Customer Full Name *</label><input name="name" id="rentName" placeholder="e.g. Rahul Sharma" required></div>
-            <div class="field"><label>Phone Number *</label><input name="phone" placeholder="Enter phone number" required></div>
-            <div class="field"><label>Email Address *</label><input name="email" type="email" placeholder="name@example.com" required></div>
-            <div class="field"><label>Driver License Number *</label><input name="license_number" placeholder="Enter driver license number" required></div>
-            <div class="field"><label>City *</label><input name="city" placeholder="Enter city" required></div>
+            <div class="field"><label>Customer Full Name *</label><input name="name" id="rentName" placeholder="Customer full name" readonly required></div>
+            <div class="field"><label>Phone Number *</label><input name="phone" id="rentPhone" placeholder="Phone number" readonly required></div>
+            <div class="field"><label>Customer ID *</label><select name="customer_id" id="rentalCustomerId" required><option value="">-- Select Customer ID --</option></select></div>
+            <div class="field"><label>Email Address *</label><select name="email" id="rentEmail" required><option value="">-- Select Email Address --</option></select></div>
+            <div class="field"><label>Driver License Number *</label><input name="license_number" id="rentLicense" placeholder="Driver license number" readonly required></div>
+            <div class="field"><label>City *</label><input name="city" id="rentCity" placeholder="Customer city" readonly required></div>
           </div>
         </div>
         <div class="form-section">
+
           <h3>2. CAR SELECTION</h3>
+
           <div class="form-grid">
+
             <div class="field"><label>Choose Available Car *</label><select id="rentCarSelect" required><option value="">-- Choose an available car --</option></select></div>
+
             <div class="field"><label>Selected License Plate</label><input id="rentPlate" placeholder="Auto-filled from selected car" readonly></div>
-          </div>
-        </div>
-        <div class="form-section">
-          <h3>3. RENTAL DATES & DURATION</h3>
-          <div class="form-grid">
-            
-<div class="field">
-    <label>Rental Start Date *</label>
-    <input type="date" id="startDate" name="start_date" required>
-</div>
-<div class="field">
-    <label>Rental Start Time *</label>
-    <input type="time" id="startTime" name="start_time" required>
-</div>
-<div class="field">
-    <label>Rental End Date *</label>
-    <input type="date" id="endDate" name="end_date" required>
-</div>
-<div class="field">
-    <label>Rental End Time *</label>
-    <input type="time" id="endTime" name="end_time" required>
-</div>
-<div class="field">
-    <label>Duration (Hours)</label>
-    <input id="duration" value="Select dates and times" readonly>
-</div>
-<div class="field">
-    <label>Hourly Rate</label>
-    <input id="dailyRate" value="Select a car first" readonly>
-</div>
 
           </div>
+
         </div>
+
+        <div class="form-section">
+
+          <h3>3. RENTAL DATES & DURATION</h3>
+
+          <div class="form-grid">
+
+
+
+<div class="field">
+
+    <label>Rental Start Date *</label>
+
+    <input type="date" id="startDate" name="start_date" required>
+
+</div>
+
+<div class="field">
+
+    <label>Rental Start Time *</label>
+
+    <input type="time" id="startTime" name="start_time" required>
+
+</div>
+
+<div class="field">
+
+    <label>Rental End Date *</label>
+
+    <input type="date" id="endDate" name="end_date" required>
+
+</div>
+
+<div class="field">
+
+    <label>Rental End Time *</label>
+
+    <input type="time" id="endTime" name="end_time" required>
+
+</div>
+
+<div class="field">
+
+    <label>Duration (Hours)</label>
+
+    <input id="duration" value="Select dates and times" readonly>
+
+</div>
+
+<div class="field">
+
+    <label>Hourly Rate</label>
+
+    <input id="dailyRate" value="Select a car first" readonly>
+
+</div>
+
+
+
+          </div>
+
+        </div>
+
         <div class="form-actions"><button type="reset" class="btn btn-light">Clear Form</button><button class="btn btn-primary" type="submit">🔑 Confirm & Rent Car</button></div>
+
       </form>
+
     </div>
+
     <div class="panel">
+
       <h2 class="panel-title">Rental Summary Preview</h2><div class="panel-sub">Review your booking before confirmation</div>
+
       <div class="summary-item"><div class="summary-label">Customer</div><div class="summary-value" id="summaryCustomer">No Customer Entered</div><div class="secondary-text" id="summaryEmail">Customer information will appear here</div></div>
+
       <div class="summary-item"><div class="summary-label">Car Selected</div><div class="summary-value" id="summaryCar">No Car Selected</div><div class="secondary-text" id="summaryRate">Rate: ₹0 / day</div></div>
+
       <div class="summary-item"><div class="summary-label">Rental Period</div><div class="summary-value" id="summaryDates">Choose rental dates</div><div class="secondary-text" id="summaryDuration">Duration: 1 day</div></div>
+
       <div class="total-box"><div class="total-row"><span>Daily rate × days</span><strong id="summaryBase">₹0</strong></div><div class="total-row"><span>Estimated extra charges</span><strong>₹0</strong></div><hr style="border:0;border-top:1px solid #cbdcff"><div class="total-row"><strong>Total Rent Fee</strong><strong class="total-final" id="summaryTotal">₹0</strong></div></div>
+
       <p class="notice">The final amount is validated by the server when the booking is submitted.</p>
+
     </div>
+
   </div>
+
 </section>
+
+
 
 <section class="page" id="page-history">
+
   <div class="panel">
+
     <div class="toolbar">
+
       <input id="rentalSearch" class="search" placeholder="Search customer name or booking...">
+
       <select id="rentalStatusFilter"><option value="">All Statuses</option><option value="Rented">Rented</option><option value="Completed">Completed</option></select>
+
       <div class="spacer"></div><span class="subtitle">Completed bookings remain in history.</span>
+
     </div>
+
     <div class="table-wrap"><table><thead><tr><th>Booking ID</th><th>Customer</th><th>Vehicle</th><th>Rental Period</th><th>Duration</th><th>Total Cost</th><th>Status</th><th>Actions</th></tr></thead><tbody id="rentalsBody"><tr><td colspan="8" class="empty">Loading rental history...</td></tr></tbody></table></div>
+
   </div>
+
 </section>
+
 </main>
+
 </div>
+
 </div>
+
+
 
 <div class="modal-backdrop" id="modalBackdrop">
+
   <div class="modal">
+
     <div class="modal-head"><h2 id="modalTitle">Add New Record</h2><button class="btn btn-light" id="closeModal">✕</button></div>
+
     <form id="modalForm"><div id="modalFields" class="form-grid"></div><div class="form-actions"><button type="button" class="btn btn-light" id="cancelModal">Cancel</button><button type="submit" class="btn btn-primary">Save Record</button></div></form>
+
   </div>
+
 </div>
+
 <div id="toast" role="status"></div>
 
+
+
 <script src="/static/app.js"></script>
+
 </body>
+
 </html>
