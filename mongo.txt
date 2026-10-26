@@ -1,0 +1,156 @@
+// Select the project database
+use vehicle_rental_db
+
+// Display collections
+show collections
+
+// Count documents in each collection
+db.cars.countDocuments({})
+db.customers.countDocuments({})
+db.rentals.countDocuments({})
+db.counters.countDocuments({})
+
+// insert car 
+
+db.cars.insertOne({
+  make: "Hyundai",
+  model: "Creta",
+  year: 2024,
+  category: "SUV",
+  hourly_rate: 250,
+  license_plate: "PB10AB1234",
+  vin: "VIN123456789",
+  fuel_type: "Petrol",
+  transmission: "Automatic",
+  status: "Available"
+})
+
+  //insert customers
+  
+db.customers.insertOne({
+  customer_id: 1001,
+  name: "Rahul Sharma",
+  email: "rahul@example.com",
+  phone: "9876543210",
+  license_number: "DL123456",
+  city: "Ludhiana",
+  total_spending: 0
+})
+
+  
+  //---------------------------------------------------------------------read and filters-------------------------------------------------------------------------
+  
+ // Display all vehicles
+db.cars.find()
+
+// Display available vehicles
+db.cars.find({ status: "Available" })
+
+// Find available SUVs
+db.cars.find({
+  category: "SUV",
+  status: "Available"
+})
+
+// Find vehicles below a specified hourly rate
+db.cars.find({
+  hourly_rate: { $lt: 300 }
+})
+
+// Find a customer by email
+db.customers.findOne({
+  email: "rahul@example.com"
+})
+
+// Show only selected fields
+db.cars.find(
+  { status: "Available" },
+  { make: 1, model: 1, hourly_rate: 1, _id: 0 }
+)
+
+  //-------------------rent a car ----------------------------
+
+  db.cars.updateOne(
+  {
+    license_plate: "PB10AB1234",
+    status: "Available"
+  },
+  {
+    $set: { status: "Rented" }
+  }
+)
+
+//-------------------return a car -------------------------------
+
+  db.cars.updateOne(
+  {
+    license_plate: "PB10AB1234",
+    status: "Rented"
+  },
+  {
+    $set: { status: "Available" }
+  }
+)
+
+  //------------------delete a document-----------------------------------
+  // Delete a vehicle by registration number
+db.cars.deleteOne({
+  license_plate: "PB10AB1234"
+})
+
+// Delete a customer by email
+db.customers.deleteOne({
+  email: "rahul@example.com"
+})
+
+// Delete multiple matching documents
+db.cars.deleteMany({
+  status: "Available"
+})
+
+  //-----------------Indexes --------------------------------------------------------
+  
+ // Unique indexes
+db.cars.createIndex({ vin: 1 }, { unique: true })
+db.cars.createIndex({ license_plate: 1 }, { unique: true })
+db.customers.createIndex({ email: 1 }, { unique: true })
+db.customers.createIndex({ customer_id: 1 }, { unique: true, sparse: true })
+db.customers.createIndex({ license_number: 1 }, { unique: true })
+db.rentals.createIndex({ booking_code: 1 }, { unique: true })
+
+// Compound indexes
+db.cars.createIndex({ category: 1, status: 1 })
+db.rentals.createIndex({ car_id: 1, status: 1 })
+db.rentals.createIndex({ customer_id: 1, status: 1 })
+
+// Inspect indexes
+db.cars.getIndexes()
+db.customers.getIndexes()
+db.rentals.getIndexes()
+
+
+  //---------------------------rental history--------------------------------------------
+
+  // Display all rental records
+db.rentals.find()
+
+// Find active rentals
+db.rentals.find({ status: "Rented" })
+
+// Find completed rentals
+db.rentals.find({ status: "Completed" })
+
+// Display the latest rentals first
+db.rentals.find().sort({ created_at: -1 })
+
+// Display the five most recent rentals
+db.rentals.find()
+  .sort({ created_at: -1 })
+  .limit(5)
+
+// Find rentals for a particular vehicle
+db.rentals.find({
+  car_id: "YOUR_CAR_OBJECT_ID"
+})
+
+  
